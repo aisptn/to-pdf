@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark light">
+    <title>to-pdf</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://aisptn.github.io/reset.css/reset.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <fieldset>
+                <button id="clear" disabled>clear</button>
+                <button id="open">open</button>
+                <button id="save" disabled>save</button>
+            </fieldset>
+            <fieldset>
+                <button id="zoom-out">-</button>
+                <button id="zoom-level">zoom: 0.10</button>
+                <button id="zoom-in">+</button>
+            </fieldset>
+        </nav>
+    </header>
+    <main>
+        <h1>drag and drop images here or click [open] to get started</h1>
+    </main>
+     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+     <script src="script.js" async></script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+header {
+    background: canvas;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+nav {
+    display: flex;
+    gap: 1rem;
+    justify-content: center
+}
+
+fieldset {
+    display: flex;
+}
+main {
+    align-items: center;
+    display: flex;
+    flex: 1;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: center;
+    padding: 1rem;
+
+    h1 {
+        opacity: 0.5;
+        text-align: center;
+    }
+}
+figure {
+    border: 1px dashed;
+}
+figure img {
+    display: block;
+    object-fit: contain;
+}
+.drop-hover {
+    border: 0.5rem dashed canvasText;
+}
