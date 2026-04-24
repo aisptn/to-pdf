@@ -52,20 +52,15 @@ const handleFiles = async (newFiles) => {
         const exifPromise = new Promise(resolve => {
             const reader = new FileReader();
             reader.onload = function(e) {
-                try {
-                    const buffer = e.target.result;
-                    const bytes = new Uint8Array(buffer);
-                    let binary = '';
-                    for (let i = 0; i < bytes.byteLength; i++) {
-                        binary += String.fromCharCode(bytes[i]);
-                    }
-                    const exifObj = piexif.load(binary);
-                    if (exifObj["0th"] && exifObj["0th"][piexif.ImageIFD.Orientation]) {
-                        fileEntry.orientation = exifObj["0th"][piexif.ImageIFD.Orientation];
-                        console.log(`File: ${file.name}, EXIF Orientation: ${exifObj["0th"][piexif.ImageIFD.Orientation]}`);
-                    }
-                } catch (e) {
-                    console.warn("No EXIF data or error parsing EXIF for", file.name, e);
+                const buffer = e.target.result;
+                const bytes = new Uint8Array(buffer);
+                let binary = '';
+                for (let i = 0; i < bytes.byteLength; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                const exifObj = piexif.load(binary);
+                if (exifObj["0th"] && exifObj["0th"][piexif.ImageIFD.Orientation]) {
+                    fileEntry.orientation = exifObj["0th"][piexif.ImageIFD.Orientation];
                 }
                 resolve();
             };
@@ -75,7 +70,6 @@ const handleFiles = async (newFiles) => {
     });
 
     await Promise.all(exifPromises);
-    console.log("All EXIF data processed.");
 };
 
 elements.zoomOut.onclick = () => { zoom = Math.max(0.01, zoom / 1.2); updateDisplay(); };
@@ -109,12 +103,6 @@ elements.clear.onclick = () => {
 
 elements.save.onclick = async () => {
     const jsPDF = window.jspdf?.jsPDF || window.jsPDF;
-
-    if (typeof jsPDF !== 'function') {
-        console.error("jsPDF constructor not found or is not a function. Please ensure the jsPDF library is loaded correctly in your HTML (e.g., via <script src=\"https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js\"></script>).");
-        alert("Error: PDF library not loaded. Cannot save PDF.");
-        return; // Stop execution if jsPDF is not available
-    }
     const images = elements.main.querySelectorAll('figure img');
     let doc;
 
@@ -124,16 +112,9 @@ elements.save.onclick = async () => {
         let w = img.naturalWidth;
         let h = img.naturalHeight;
 
-        // Swap width and height if orientation is 5, 6, 7, or 8
         const swapDimensions = orientation >= 5 && orientation <= 8;
         if (swapDimensions) {
             [w, h] = [h, w];
-        }
-        console.log(`Image ${i}: Original WxH: ${img.naturalWidth}x${img.naturalHeight}, Corrected WxH: ${w}x${h}, Orientation: ${orientation}`);
-        
-        if (!w || !h) {
-            console.warn(`Skipping image ${i}: Not fully loaded.`);
-            continue;
         }
 
         const format = originalFile.type === 'image/jpeg' ? 'JPEG' : 'PNG';
@@ -151,9 +132,6 @@ elements.save.onclick = async () => {
         } else {
             doc.addPage([w, h], w > h ? 'l' : 'p');
         }
-
-        // Passing 'NONE' as the compression method instructs jsPDF 
-        // to embed the raw bytes without re-processing/re-encoding.
         doc.addImage(data, format, 0, 0, w, h, undefined, 'NONE');
     }
 
