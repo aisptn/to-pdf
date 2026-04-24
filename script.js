@@ -26,11 +26,18 @@ const updateDisplay = () => {
     });
 };
 
-const handleFiles = (newFiles) => {
+const handleFiles = async (newFiles) => {
+    const exifPromises = [];
+
     Array.from(newFiles).forEach(file => {
         if (!['image/jpeg', 'image/png'].includes(file.type)) return;
 
-        files.push(file);
+        const fileEntry = {
+            file: file,
+            orientation: 1
+        };
+        files.push(fileEntry);
+
         const figure = document.createElement('figure');
         const img = document.createElement('img');
         const url = URL.createObjectURL(file);
@@ -41,7 +48,34 @@ const handleFiles = (newFiles) => {
 
         figure.appendChild(img);
         elements.main.appendChild(figure);
+
+        const exifPromise = new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const buffer = e.target.result;
+                    const bytes = new Uint8Array(buffer);
+                    let binary = '';
+                    for (let i = 0; i < bytes.byteLength; i++) {
+                        binary += String.fromCharCode(bytes[i]);
+                    }
+                    const exifObj = piexif.load(binary);
+                    if (exifObj["0th"] && exifObj["0th"][piexif.ImageIFD.Orientation]) {
+                        fileEntry.orientation = exifObj["0th"][piexif.ImageIFD.Orientation];
+                        console.log(`File: ${file.name}, EXIF Orientation: ${exifObj["0th"][piexif.ImageIFD.Orientation]}`);
+                    }
+                } catch (e) {
+                    console.warn("No EXIF data or error parsing EXIF for", file.name, e);
+                }
+                resolve();
+            };
+            reader.readAsArrayBuffer(file);
+        });
+        exifPromises.push(exifPromise);
     });
+
+    await Promise.all(exifPromises);
+    console.log("All EXIF data processed.");
 };
 
 elements.zoomOut.onclick = () => { zoom = Math.max(0.01, zoom / 1.2); updateDisplay(); };
@@ -50,10 +84,10 @@ elements.zoomLevel.onclick = () => { zoom = 0.1; updateDisplay(); };
 
 elements.main.ondragover = (e) => { e.preventDefault(); elements.main.classList.add('drop-hover'); };
 elements.main.ondragleave = () => elements.main.classList.remove('drop-hover');
-elements.main.ondrop = (e) => {
+elements.main.ondrop = async (e) => {
     e.preventDefault();
     elements.main.classList.remove('drop-hover');
-    handleFiles(e.dataTransfer.files);
+    await handleFiles(e.dataTransfer.files);
 };
 
 elements.open.onclick = () => {
@@ -61,7 +95,7 @@ elements.open.onclick = () => {
     input.type = 'file';
     input.accept = 'image/jpeg,image/png';
     input.multiple = true;
-    input.onchange = () => handleFiles(input.files);
+    input.onchange = async () => await handleFiles(input.files);
     input.click();
 };
 
@@ -85,19 +119,26 @@ elements.save.onclick = async () => {
     let doc;
 
     for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+        const { file: originalFile, orientation } = files[i];
         const img = images[i];
-        const w = img.naturalWidth;
-        const h = img.naturalHeight;
+        let w = img.naturalWidth;
+        let h = img.naturalHeight;
+
+        // Swap width and height if orientation is 5, 6, 7, or 8
+        const swapDimensions = orientation >= 5 && orientation <= 8;
+        if (swapDimensions) {
+            [w, h] = [h, w];
+        }
+        console.log(`Image ${i}: Original WxH: ${img.naturalWidth}x${img.naturalHeight}, Corrected WxH: ${w}x${h}, Orientation: ${orientation}`);
         
         if (!w || !h) {
             console.warn(`Skipping image ${i}: Not fully loaded.`);
             continue;
         }
 
-        const format = file.type === 'image/jpeg' ? 'JPEG' : 'PNG';
+        const format = originalFile.type === 'image/jpeg' ? 'JPEG' : 'PNG';
         
-        const buffer = await file.arrayBuffer();
+        const buffer = await originalFile.arrayBuffer();
         const data = new Uint8Array(buffer);
 
         if (!doc) {
