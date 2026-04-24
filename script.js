@@ -132,7 +132,9 @@ elements.save.onclick = async () => {
         } else {
             doc.addPage([w, h], w > h ? 'l' : 'p');
         }
-        doc.addImage(data, format, 0, 0, w, h, undefined, 'NONE');
+
+        const compression = format === 'PNG' ? 'SLOW' : 'NONE';
+        doc.addImage(data, format, 0, 0, w, h, undefined, compression);
     }
 
     if (doc) doc.save('images.pdf');
