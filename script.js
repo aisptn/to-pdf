@@ -1,131 +1,120 @@
-const clear = document.getElementById('clear');
-const open = document.getElementById('open');
-const save = document.getElementById('save');
-
-const zoomOut = document.getElementById('zoom-out');
-const zoomLevel = document.getElementById('zoom-level');
-const zoomIn = document.getElementById('zoom-in');
+const elements = {
+    clear: document.getElementById('clear'),
+    open: document.getElementById('open'),
+    save: document.getElementById('save'),
+    zoomOut: document.getElementById('zoom-out'),
+    zoomIn: document.getElementById('zoom-in'),
+    zoomLevel: document.getElementById('zoom-level'),
+    main: document.querySelector('main'),
+    h1: document.querySelector('main h1')
+};
 
 let zoom = 0.1;
-const minZoom = 0.1;
-const maxZoom = 1;
-
-const main = document.querySelector('main');
-const h1 = document.querySelector('main h1');
-
 let files = [];
+let objectUrls = [];
 
-function setupImage(img) {
-    img.addEventListener('load', () => updateZoom(), { once: true });
-    if (img.complete) updateZoom();
-}
+const updateDisplay = () => {
+    elements.zoomLevel.textContent = `zoom: ${zoom.toFixed(2)}`;
+    elements.h1.style.display = files.length ? 'none' : '';
+    elements.clear.disabled = elements.save.disabled = !files.length;
 
-function updateZoom() {
-    zoomLevel.textContent = `zoom: ${zoom.toFixed(2)}`;
     document.querySelectorAll('figure img').forEach(img => {
         if (img.naturalWidth) {
             img.style.width = `${img.naturalWidth * zoom}px`;
             img.style.height = `${img.naturalHeight * zoom}px`;
         }
     });
-}
+};
 
+const handleFiles = (newFiles) => {
+    Array.from(newFiles).forEach(file => {
+        if (!['image/jpeg', 'image/png'].includes(file.type)) return;
 
-zoomOut.addEventListener('click', () => {
-    zoom /= 10 ** (1 / 9);
-    if (zoom < minZoom) zoom = minZoom;
-    updateZoom();
-});
+        files.push(file);
+        const figure = document.createElement('figure');
+        const img = document.createElement('img');
+        const url = URL.createObjectURL(file);
+        objectUrls.push(url);
+        img.src = url;
+        
+        img.onload = () => updateDisplay();
 
-zoomIn.addEventListener('click', () => {
-    zoom *= 10 ** (1 / 9);
-    if (zoom > maxZoom) zoom = maxZoom;
-    updateZoom();
-});
+        figure.appendChild(img);
+        elements.main.appendChild(figure);
+    });
+};
 
-zoomLevel.addEventListener('click', () => {
-    zoom = 0.1;
-    updateZoom();
-});
+elements.zoomOut.onclick = () => { zoom = Math.max(0.01, zoom / 1.2); updateDisplay(); };
+elements.zoomIn.onclick = () => { zoom = Math.min(2.0, zoom * 1.2); updateDisplay(); };
+elements.zoomLevel.onclick = () => { zoom = 0.1; updateDisplay(); };
 
+elements.main.ondragover = (e) => { e.preventDefault(); elements.main.classList.add('drop-hover'); };
+elements.main.ondragleave = () => elements.main.classList.remove('drop-hover');
+elements.main.ondrop = (e) => {
+    e.preventDefault();
+    elements.main.classList.remove('drop-hover');
+    handleFiles(e.dataTransfer.files);
+};
 
-main.addEventListener('dragover', event => {
-    event.preventDefault();
-    main.classList.add('drop-hover');
-});
-
-main.addEventListener('dragleave', () => {
-    main.classList.remove('drop-hover');
-});
-main.addEventListener('drop', event => {
-    event.preventDefault();
-    main.classList.remove('drop-hover');
-    for (const file of event.dataTransfer.files) {
-        if (file.type === 'image/jpeg' || file.type === 'image/png') {
-            files.push(file);
-            const figure = document.createElement('figure');
-            const img = document.createElement('img');
-            img.src = URL.createObjectURL(file);
-            setupImage(img);
-            figure.appendChild(img);
-            document.querySelector('main').appendChild(figure);
-        }
-    }
-    clear.disabled = false;
-    save.disabled = false;
-    h1.style.display = 'none';
-});
-
-
-clear.addEventListener('click', () => {
-    document.querySelectorAll('figure').forEach(figure => figure.remove());
-    files = [];
-    clear.disabled = true;
-    save.disabled = true;
-    h1.style.display = '';
-});
-
-open.addEventListener('click', () => {
+elements.open.onclick = () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/jpeg,image/png';
     input.multiple = true;
-    input.addEventListener('change', () => {
-        for (const file of input.files) {
-            files.push(file);
-            const figure = document.createElement('figure');
-            const img = document.createElement('img');
-            img.src = URL.createObjectURL(file);
-            setupImage(img);
-            figure.appendChild(img);
-            document.querySelector('main').appendChild(figure);
-        }
-        clear.disabled = false;
-        save.disabled = false;
-        h1.style.display = 'none';
-        }, { once: true });
+    input.onchange = () => handleFiles(input.files);
     input.click();
-});
+};
 
-save.addEventListener('click', async () => {
-    const pdfDoc = await PDFLib.PDFDocument.create();
-    for (const file of files) {
-        const arrayBuffer = await file.arrayBuffer();
-        let image;
-        if (file.type === 'image/png') {
-            image = await pdfDoc.embedPng(arrayBuffer);
-        } else if (file.type === 'image/jpeg') {
-            image = await pdfDoc.embedJpg(arrayBuffer);
-        }
-        const page = pdfDoc.addPage([image.width, image.height]);
-        page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
+elements.clear.onclick = () => {
+    elements.main.querySelectorAll('figure').forEach(f => f.remove());
+    objectUrls.forEach(url => URL.revokeObjectURL(url));
+    objectUrls = [];
+    files = [];
+    updateDisplay();
+};
+
+elements.save.onclick = async () => {
+    const jsPDF = window.jspdf?.jsPDF || window.jsPDF;
+
+    if (typeof jsPDF !== 'function') {
+        console.error("jsPDF constructor not found or is not a function. Please ensure the jsPDF library is loaded correctly in your HTML (e.g., via <script src=\"https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js\"></script>).");
+        alert("Error: PDF library not loaded. Cannot save PDF.");
+        return; // Stop execution if jsPDF is not available
     }
-    const pdfBytes = await pdfDoc.save();
-    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'images.pdf';
-    a.click();
-    URL.revokeObjectURL(url);
-});
+    const images = elements.main.querySelectorAll('figure img');
+    let doc;
+
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const img = images[i];
+        const w = img.naturalWidth;
+        const h = img.naturalHeight;
+        
+        if (!w || !h) {
+            console.warn(`Skipping image ${i}: Not fully loaded.`);
+            continue;
+        }
+
+        const format = file.type === 'image/jpeg' ? 'JPEG' : 'PNG';
+        
+        const buffer = await file.arrayBuffer();
+        const data = new Uint8Array(buffer);
+
+        if (!doc) {
+            doc = new jsPDF({
+                orientation: w > h ? 'l' : 'p',
+                unit: 'px',
+                format: [w, h],
+                hotfixes: ["px_scaling"]
+            });
+        } else {
+            doc.addPage([w, h], w > h ? 'l' : 'p');
+        }
+
+        // Passing 'NONE' as the compression method instructs jsPDF 
+        // to embed the raw bytes without re-processing/re-encoding.
+        doc.addImage(data, format, 0, 0, w, h, undefined, 'NONE');
+    }
+
+    if (doc) doc.save('images.pdf');
+};
