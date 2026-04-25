@@ -13,17 +13,46 @@ let zoom = 0.1;
 let files = [];
 let objectUrls = [];
 
+const getEntryDimensions = (entry) => {
+    let width = entry.width || entry.img?.naturalWidth || 0;
+    let height = entry.height || entry.img?.naturalHeight || 0;
+    if (entry.orientation >= 5 && entry.orientation <= 8) {
+        [width, height] = [height, width];
+    }
+    return { width, height };
+};
+
+const getScaledDimensionsFromHyp = (width, height, targetHyp) => {
+    const currentHyp = Math.hypot(width, height) || 1;
+    const scale = targetHyp / currentHyp;
+    return {
+        width: Math.round(width * scale),
+        height: Math.round(height * scale)
+    };
+};
+
 const updateDisplay = () => {
     elements.zoomLevel.textContent = `zoom: ${zoom.toFixed(2)}`;
     elements.h1.style.display = files.length ? 'none' : '';
     elements.clear.disabled = elements.save.disabled = !files.length;
 
-    files.forEach(entry => {
+    const baseEntry = files[0];
+    const baseDims = baseEntry ? getEntryDimensions(baseEntry) : { width: 0, height: 0 };
+    const baseHyp = Math.hypot(baseDims.width, baseDims.height) || 1;
+
+    files.forEach((entry, index) => {
         const img = entry.img;
-        if (img && img.naturalWidth) {
-            img.style.width = `${img.naturalWidth * zoom}px`;
-            img.style.height = `${img.naturalHeight * zoom}px`;
-        }
+        if (!img || !img.naturalWidth) return;
+
+        const dims = getEntryDimensions(entry);
+        const scaled = index === 0
+            ? dims
+            : getScaledDimensionsFromHyp(dims.width, dims.height, baseHyp);
+        const previewWidth = Math.round(scaled.width * zoom);
+        const previewHeight = Math.round(scaled.height * zoom);
+
+        img.style.width = `${previewWidth}px`;
+        img.style.height = `${previewHeight}px`;
     });
 };
 
@@ -144,28 +173,22 @@ const savePdfOnMainThread = async (entries) => {
     let doc;
     for (let i = 0; i < entries.length; i++) {
         const entry = entries[i];
-        let w = entry.width;
-        let h = entry.height;
-        const swapDimensions = entry.orientation >= 5 && entry.orientation <= 8;
-        if (swapDimensions) {
-            [w, h] = [h, w];
-        }
-
+        const orientation = entry.pageWidth > entry.pageHeight ? 'l' : 'p';
         if (!doc) {
             doc = new jsPDF({
-                orientation: w > h ? 'l' : 'p',
+                orientation: orientation,
                 unit: 'px',
-                format: [w, h],
+                format: [entry.pageWidth, entry.pageHeight],
                 hotfixes: ['px_scaling']
             });
         } else {
-            doc.addPage([w, h], w > h ? 'l' : 'p');
+            doc.addPage([entry.pageWidth, entry.pageHeight], orientation);
         }
 
         const format = entry.type === 'image/jpeg' ? 'JPEG' : 'PNG';
         const compression = format === 'PNG' ? 'SLOW' : 'NONE';
         const imageData = new Uint8Array(entry.data);
-        doc.addImage(imageData, format, 0, 0, w, h, undefined, compression);
+        doc.addImage(imageData, format, 0, 0, entry.pageWidth, entry.pageHeight, undefined, compression);
         await new Promise(requestAnimationFrame);
     }
 
@@ -187,20 +210,44 @@ const sendPdfWorker = (worker, entries) => new Promise((resolve, reject) => {
 });
 
 const preparePdfEntries = async () => {
-    return Promise.all(files.map(async (entry) => {
+    const prepared = await Promise.all(files.map(async (entry) => {
         if (!entry.data) {
             const buffer = await entry.file.arrayBuffer();
             entry.data = new Uint8Array(buffer);
         }
 
+        const dims = getEntryDimensions(entry);
         return {
             type: entry.file.type,
             orientation: entry.orientation,
-            width: entry.width || entry.img?.naturalWidth || 0,
-            height: entry.height || entry.img?.naturalHeight || 0,
-            data: entry.data.buffer
+            width: dims.width,
+            height: dims.height,
+            pageWidth: dims.width,
+            pageHeight: dims.height,
+            data: entry.data.buffer,
+            imageWidth: dims.width,
+            imageHeight: dims.height
         };
     }));
+
+    if (!prepared.length) return prepared;
+
+    const baseEntry = prepared[0];
+    const baseWidth = baseEntry.pageWidth;
+    const baseHeight = baseEntry.pageHeight;
+    const baseHypotenuse = Math.hypot(baseWidth, baseHeight) || 1;
+
+    return prepared.map((entry, index) => {
+        const scaled = index === 0
+            ? { width: entry.pageWidth, height: entry.pageHeight }
+            : getScaledDimensionsFromHyp(entry.pageWidth, entry.pageHeight, baseHypotenuse);
+
+        return {
+            ...entry,
+            pageWidth: scaled.width,
+            pageHeight: scaled.height
+        };
+    });
 };
 
 elements.save.onclick = async () => {

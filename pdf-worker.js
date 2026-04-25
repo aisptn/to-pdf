@@ -8,31 +8,30 @@ self.onmessage = async (event) => {
             throw new Error('jsPDF not found in worker');
         }
 
+        const baseWidth = entries[0].pageWidth;
+        const baseHeight = entries[0].pageHeight;
+        const baseHypotenuse = Math.hypot(baseWidth, baseHeight) || 1;
+
         let doc;
         for (let i = 0; i < entries.length; i++) {
             const entry = entries[i];
-            let w = entry.width;
-            let h = entry.height;
-            const swapDimensions = entry.orientation >= 5 && entry.orientation <= 8;
-            if (swapDimensions) {
-                [w, h] = [h, w];
-            }
+            const orientation = entry.pageWidth > entry.pageHeight ? 'l' : 'p';
 
             if (!doc) {
                 doc = new jsPDF({
-                    orientation: w > h ? 'l' : 'p',
+                    orientation: orientation,
                     unit: 'px',
-                    format: [w, h],
+                    format: [entry.pageWidth, entry.pageHeight],
                     hotfixes: ['px_scaling']
                 });
             } else {
-                doc.addPage([w, h], w > h ? 'l' : 'p');
+                doc.addPage([entry.pageWidth, entry.pageHeight], orientation);
             }
 
             const format = entry.type === 'image/jpeg' ? 'JPEG' : 'PNG';
             const compression = format === 'PNG' ? 'SLOW' : 'NONE';
             const imageData = new Uint8Array(entry.data);
-            doc.addImage(imageData, format, 0, 0, w, h, undefined, compression);
+            doc.addImage(imageData, format, 0, 0, entry.pageWidth, entry.pageHeight, undefined, compression);
         }
 
         const pdf = doc.output('arraybuffer');
