@@ -10,7 +10,7 @@ self.onmessage = async (event) => {
 
         const baseWidth = entries[0].pageWidth;
         const baseHeight = entries[0].pageHeight;
-        const baseHypotenuse = Math.hypot(baseWidth, baseHeight) || 1;
+        const baseHypotenuse = Math.round(Math.hypot(baseWidth, baseHeight)) || 1;
 
         let doc;
         for (let i = 0; i < entries.length; i++) {

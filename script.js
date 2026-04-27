@@ -38,7 +38,7 @@ const updateDisplay = () => {
 
     const baseEntry = files[0];
     const baseDims = baseEntry ? getEntryDimensions(baseEntry) : { width: 0, height: 0 };
-    const baseHyp = Math.hypot(baseDims.width, baseDims.height) || 1;
+    const baseHyp = Math.round(Math.hypot(baseDims.width, baseDims.height)) || 1;
 
     files.forEach((entry, index) => {
         const img = entry.img;
@@ -235,7 +235,7 @@ const preparePdfEntries = async () => {
     const baseEntry = prepared[0];
     const baseWidth = baseEntry.pageWidth;
     const baseHeight = baseEntry.pageHeight;
-    const baseHypotenuse = Math.hypot(baseWidth, baseHeight) || 1;
+    const baseHypotenuse = Math.round(Math.hypot(baseWidth, baseHeight)) || 1;
 
     return prepared.map((entry, index) => {
         const scaled = index === 0
